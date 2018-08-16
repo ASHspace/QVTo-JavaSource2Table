@@ -1,0 +1,69 @@
+modeltype JavaSrc uses 'http://com.java';
+modeltype Table uses 'http://com.table';
+
+
+transformation JavaSource2TableTrans(in src:JavaSrc, out dst:Table);
+
+main() {
+	src.rootObjects()[JavaSrc::JavaSource] -> map Java2Table();
+}
+
+
+mapping JavaSrc::JavaSource::Java2Table(): Table::Table
+{
+	rows += Sequence{allMethodDefs()}->map Method2Header();
+	rows += Sequence{allMethodDefs()}->map Method2Coll();	
+}
+
+
+mapping Sequence(MethodDefinition)::Method2Header(): Table::Row
+{
+	cells += map toColl();
+	cells += Sequence{allMethodDefs() -> collect(md | map R2C(md))} -> flatten();
+}
+
+mapping toColl(): Table::Cell
+{
+	 content := '';
+}
+
+
+mapping Sequence(MethodDefinition)::Method2Coll()
+{
+	self.map toCell();
+}
+
+
+mapping JavaSrc::MethodDefinition::toCell(): Table::Row
+{
+	cells += self.map title_cell();
+	cells += Sequence{ allMethodDefs() ->collect(e | map DataCells(e, self))} -> flatten();
+}
+
+
+mapping DataCells(in m: JavaSource::MethodDefinition, in n: JavaSource::MethodDefinition): Table::Cell
+{
+	content := n.computeContent(m).toString();
+}
+
+mapping MethodDefinition::title_cell(): Table::Cell
+{
+	 content := self._class.name + '.' + self.name;
+}
+
+
+
+mapping R2C(in m: JavaSource::MethodDefinition): Table::Cell
+{
+	 content := m._class.name + '.' + m.name;
+}
+
+helper allMethodDefs(): Sequence(JavaSource::MethodDefinition) =
+	return JavaSource::MethodDefinition.allInstances()->sortedBy(e | e._class.name + '_' + e.name)->asSequence();
+		
+helper JavaSource::MethodDefinition::
+	computeContent(col : JavaSource::MethodDefinition) : String =
+	return self.invocations->select(i | i.method.name = col.name and i.method._class.name = col._class.name)->size().toString();
+	
+	
+	
